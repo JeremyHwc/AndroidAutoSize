@@ -26,6 +26,8 @@ import android.content.res.Resources;
 import android.support.v4.app.Fragment;
 import android.util.DisplayMetrics;
 
+import java.lang.reflect.Field;
+
 import me.jessyan.autosize.external.ExternalAdaptManager;
 import me.jessyan.autosize.unit.UnitsManager;
 import me.jessyan.autosize.utils.LogUtils;
@@ -84,9 +86,14 @@ public final class AutoSizeConfig {
     private int mScreenWidth;
     /**
      * 设备的屏幕总高度, 单位 px, 如果 {@link #isUseDeviceSize} 为 {@code false}, 屏幕总高度会减去状态栏的高度
-     * 如果有导航栏也会减去导航栏的高度
      */
     private int mScreenHeight;
+    /**
+     * 状态栏高度, 当 {@link #isUseDeviceSize} 为 {@code false} 时, AndroidAutoSize 会将 {@link #mScreenHeight} 减去状态栏高度
+     * AndroidAutoSize 默认使用 {@link ScreenUtils#getStatusBarHeight()} 方法获取状态栏高度
+     * AndroidAutoSize 使用者可使用 {@link #setStatusBarHeight(int)} 自行设置状态栏高度
+     */
+    private int mStatusBarHeight;
     /**
      * 为了保证在不同高宽比的屏幕上显示效果也能完全一致, 所以本方案适配时是以设计图宽度与设备实际宽度的比例或设计图高度与设备实际高度的比例应用到
      * 每个 View 上 (只能在宽度和高度之中选一个作为基准), 从而使每个 View 的高和宽用同样的比例缩放, 避免在与设计图高宽比不一致的设备上出现适配的 View 高或宽变形的问题
@@ -96,8 +103,8 @@ public final class AutoSizeConfig {
     private boolean isBaseOnWidth = true;
     /**
      * 此字段表示是否使用设备的实际尺寸做适配
-     * {@link #isUseDeviceSize} 为 {@code true} 表示屏幕高度 {@link #mScreenHeight} 包含状态栏的高度, 如果有导航栏也会包含导航栏的高度
-     * {@link #isUseDeviceSize} 为 {@code false} 表示 {@link #mScreenHeight} 会减去状态栏的高度, 如果有导航栏也会减去导航栏的高度, 默认为 {@code true}
+     * {@link #isUseDeviceSize} 为 {@code true} 表示屏幕高度 {@link #mScreenHeight} 包含状态栏的高度
+     * {@link #isUseDeviceSize} 为 {@code false} 表示 {@link #mScreenHeight} 会减去状态栏的高度, 默认为 {@code true}
      */
     private boolean isUseDeviceSize = true;
     /**
@@ -117,9 +124,26 @@ public final class AutoSizeConfig {
      */
     private boolean isCustomFragment;
     /**
-     * 屏幕方向, {@link true} 为纵向, {@link false} 为横向
+     * 屏幕方向, {@code true} 为纵向, {@code false} 为横向
      */
     private boolean isVertical;
+    /**
+     * 是否屏蔽系统字体大小对 AndroidAutoSize 的影响, 如果为 {@code true}, App 内的字体的大小将不会跟随系统设置中字体大小的改变
+     * 如果为 {@code false}, 则会跟随系统设置中字体大小的改变, 默认为 {@code false}
+     */
+    private boolean isExcludeFontScale;
+    /**
+     * 是否是 Miui 系统
+     */
+    private boolean isMiui;
+    /**
+     * Miui 系统中的 mTmpMetrics 字段
+     */
+    private Field mTmpMetricsField;
+    /**
+     * 屏幕适配监听器，用于监听屏幕适配时的一些事件
+     */
+    private onAdaptListener mOnAdaptListener;
 
     public static AutoSizeConfig getInstance() {
         if (sInstance == null) {
@@ -141,7 +165,7 @@ public final class AutoSizeConfig {
     }
 
     /**
-     * v0.6.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
+     * v0.7.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
      * 此方法默认使用以宽度进行等比例适配, 如想使用以高度进行等比例适配, 请调用 {@link #init(Application, boolean)}
      *
      * @param application {@link Application}
@@ -151,7 +175,7 @@ public final class AutoSizeConfig {
     }
 
     /**
-     * v0.6.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
+     * v0.7.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
      * 此方法使用默认的 {@link AutoAdaptStrategy} 策略, 如想使用自定义的 {@link AutoAdaptStrategy} 策略
      * 请调用 {@link #init(Application, boolean, AutoAdaptStrategy)}
      *
@@ -163,7 +187,7 @@ public final class AutoSizeConfig {
     }
 
     /**
-     * v0.6.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
+     * v0.7.0 以后, 框架会在 APP 启动时自动调用此方法进行初始化, 使用者无需手动初始化, 初始化方法只能调用一次, 否则报错
      *
      * @param application   {@link Application}
      * @param isBaseOnWidth 详情请查看 {@link #isBaseOnWidth} 的注释
@@ -181,6 +205,7 @@ public final class AutoSizeConfig {
         int[] screenSize = ScreenUtils.getScreenSize(application);
         mScreenWidth = screenSize[0];
         mScreenHeight = screenSize[1];
+        mStatusBarHeight = ScreenUtils.getStatusBarHeight();
         LogUtils.d("designWidthInDp = " + mDesignWidthInDp + ", designHeightInDp = " + mDesignHeightInDp + ", screenWidth = " + mScreenWidth + ", screenHeight = " + mScreenHeight);
 
         mInitDensity = displayMetrics.density;
@@ -196,7 +221,7 @@ public final class AutoSizeConfig {
                                 Resources.getSystem().getDisplayMetrics().scaledDensity;
                         LogUtils.d("initScaledDensity = " + mInitScaledDensity + " on ConfigurationChanged");
                     }
-                    isVertical = application.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+                    isVertical = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT;
                     int[] screenSize = ScreenUtils.getScreenSize(application);
                     mScreenWidth = screenSize[0];
                     mScreenHeight = screenSize[1];
@@ -209,8 +234,17 @@ public final class AutoSizeConfig {
             }
         });
         LogUtils.d("initDensity = " + mInitDensity + ", initScaledDensity = " + mInitScaledDensity);
-        mActivityLifecycleCallbacks = new ActivityLifecycleCallbacksImpl(strategy == null ? new DefaultAutoAdaptStrategy() : strategy);
+        mActivityLifecycleCallbacks = new ActivityLifecycleCallbacksImpl(strategy == null ? new WrapperAutoAdaptStrategy(new DefaultAutoAdaptStrategy()) : strategy);
         application.registerActivityLifecycleCallbacks(mActivityLifecycleCallbacks);
+        if ("MiuiResources".equals(application.getResources().getClass().getSimpleName()) || "XResources".equals(application.getResources().getClass().getSimpleName())) {
+            isMiui = true;
+            try {
+                mTmpMetricsField = Resources.class.getDeclaredField("mTmpMetrics");
+                mTmpMetricsField.setAccessible(true);
+            } catch (Exception e) {
+                mTmpMetricsField = null;
+            }
+        }
         return this;
     }
 
@@ -251,7 +285,18 @@ public final class AutoSizeConfig {
     public AutoSizeConfig setAutoAdaptStrategy(AutoAdaptStrategy autoAdaptStrategy) {
         Preconditions.checkNotNull(autoAdaptStrategy, "autoAdaptStrategy == null");
         Preconditions.checkNotNull(mActivityLifecycleCallbacks, "Please call the AutoSizeConfig#init() first");
-        mActivityLifecycleCallbacks.setAutoAdaptStrategy(autoAdaptStrategy);
+        mActivityLifecycleCallbacks.setAutoAdaptStrategy(new WrapperAutoAdaptStrategy(autoAdaptStrategy));
+        return this;
+    }
+
+    /**
+     * 设置屏幕适配监听器
+     *
+     * @param onAdaptListener {@link onAdaptListener}
+     */
+    public AutoSizeConfig setOnAdaptListener(onAdaptListener onAdaptListener) {
+        Preconditions.checkNotNull(onAdaptListener, "onAdaptListener == null");
+        mOnAdaptListener = onAdaptListener;
         return this;
     }
 
@@ -269,7 +314,7 @@ public final class AutoSizeConfig {
     /**
      * 是否使用设备的实际尺寸做适配
      *
-     * @param useDeviceSize {@code true} 为使用设备的实际尺寸 (包含状态栏, 导航栏), {@code false} 为不使用 (不包含状态栏, 导航栏)
+     * @param useDeviceSize {@code true} 为使用设备的实际尺寸 (包含状态栏), {@code false} 为不使用设备的实际尺寸 (不包含状态栏)
      * @see #isUseDeviceSize 详情请查看这个字段的注释
      */
     public AutoSizeConfig setUseDeviceSize(boolean useDeviceSize) {
@@ -318,7 +363,7 @@ public final class AutoSizeConfig {
     /**
      * {@link ExternalAdaptManager} 用来管理外部三方库 {@link Activity} 的适配
      *
-     * @return {@link ExternalAdaptManager}
+     * @return {@link #mExternalAdaptManager}
      */
     public ExternalAdaptManager getExternalAdaptManager() {
         return mExternalAdaptManager;
@@ -327,10 +372,19 @@ public final class AutoSizeConfig {
     /**
      * {@link UnitsManager} 用来管理 AndroidAutoSize 支持的所有单位, AndroidAutoSize 支持五种单位 (dp、sp、pt、in、mm)
      *
-     * @return {@link UnitsManager}
+     * @return {@link #mUnitsManager}
      */
     public UnitsManager getUnitsManager() {
         return mUnitsManager;
+    }
+
+    /**
+     * 返回 {@link #mOnAdaptListener}
+     *
+     * @return {@link #mOnAdaptListener}
+     */
+    public onAdaptListener getOnAdaptListener() {
+        return mOnAdaptListener;
     }
 
     /**
@@ -366,7 +420,7 @@ public final class AutoSizeConfig {
      * @return {@link #mScreenHeight}
      */
     public int getScreenHeight() {
-        return isUseDeviceSize() ? mScreenHeight : mScreenHeight - ScreenUtils.getStatusBarHeight() - ScreenUtils.getHeightOfNavigationBar(getApplication());
+        return isUseDeviceSize() ? mScreenHeight : mScreenHeight - mStatusBarHeight;
     }
 
     /**
@@ -428,19 +482,59 @@ public final class AutoSizeConfig {
     /**
      * 获取屏幕方向
      *
-     * @return {@link true} 为纵向, {@link false} 为横向
+     * @return {@code true} 为纵向, {@code false} 为横向
      */
     public boolean isVertical() {
         return isVertical;
     }
 
     /**
+     * 返回 {@link #isMiui}
+     *
+     * @return {@link #isMiui}
+     */
+    public boolean isMiui() {
+        return isMiui;
+    }
+
+    /**
+     * 返回 {@link #mTmpMetricsField}
+     *
+     * @return {@link #mTmpMetricsField}
+     */
+    public Field getTmpMetricsField() {
+        return mTmpMetricsField;
+    }
+
+    /**
      * 设置屏幕方向
      *
-     * @param vertical {@link true} 为纵向, {@link false} 为横向
+     * @param vertical {@code true} 为纵向, {@code false} 为横向
      */
-    public void setVertical(boolean vertical) {
+    public AutoSizeConfig setVertical(boolean vertical) {
         isVertical = vertical;
+        return this;
+    }
+
+    /**
+     * 是否屏蔽系统字体大小对 AndroidAutoSize 的影响, 如果为 {@code true}, App 内的字体的大小将不会跟随系统设置中字体大小的改变
+     * 如果为 {@code false}, 则会跟随系统设置中字体大小的改变, 默认为 {@code false}
+     *
+     * @return {@link #isExcludeFontScale}
+     */
+    public boolean isExcludeFontScale() {
+        return isExcludeFontScale;
+    }
+
+    /**
+     * 是否屏蔽系统字体大小对 AndroidAutoSize 的影响, 如果为 {@code true}, App 内的字体的大小将不会跟随系统设置中字体大小的改变
+     * 如果为 {@code false}, 则会跟随系统设置中字体大小的改变, 默认为 {@code false}
+     *
+     * @param excludeFontScale 是否屏蔽
+     */
+    public AutoSizeConfig setExcludeFontScale(boolean excludeFontScale) {
+        isExcludeFontScale = excludeFontScale;
+        return this;
     }
 
     /**
@@ -448,17 +542,54 @@ public final class AutoSizeConfig {
      *
      * @param screenWidth 屏幕宽度
      */
-    public void setScreenWidth(int screenWidth) {
+    public AutoSizeConfig setScreenWidth(int screenWidth) {
+        Preconditions.checkArgument(screenWidth > 0, "screenWidth must be > 0");
         mScreenWidth = screenWidth;
+        return this;
     }
 
     /**
      * 设置屏幕高度
      *
-     * @param screenHeight 屏幕高度 (包含状态栏和导航栏)
+     * @param screenHeight 屏幕高度 (需要包含状态栏)
      */
-    public void setScreenHeight(int screenHeight) {
+    public AutoSizeConfig setScreenHeight(int screenHeight) {
+        Preconditions.checkArgument(screenHeight > 0, "screenHeight must be > 0");
         mScreenHeight = screenHeight;
+        return this;
+    }
+
+    /**
+     * 设置全局设计图宽度
+     *
+     * @param designWidthInDp 设计图宽度
+     */
+    public AutoSizeConfig setDesignWidthInDp(int designWidthInDp) {
+        Preconditions.checkArgument(designWidthInDp > 0, "designWidthInDp must be > 0");
+        mDesignWidthInDp = designWidthInDp;
+        return this;
+    }
+
+    /**
+     * 设置全局设计图高度
+     *
+     * @param designHeightInDp 设计图高度
+     */
+    public AutoSizeConfig setDesignHeightInDp(int designHeightInDp) {
+        Preconditions.checkArgument(designHeightInDp > 0, "designHeightInDp must be > 0");
+        mDesignHeightInDp = designHeightInDp;
+        return this;
+    }
+
+    /**
+     * 设置状态栏高度
+     *
+     * @param statusBarHeight 状态栏高度
+     */
+    public AutoSizeConfig setStatusBarHeight(int statusBarHeight) {
+        Preconditions.checkArgument(statusBarHeight > 0, "statusBarHeight must be > 0");
+        mStatusBarHeight = statusBarHeight;
+        return this;
     }
 
     /**

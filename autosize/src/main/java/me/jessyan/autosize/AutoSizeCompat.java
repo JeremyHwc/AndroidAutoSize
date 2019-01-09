@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 JessYan
+ * Copyright 2019 JessYan
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,66 +16,54 @@
 package me.jessyan.autosize;
 
 import android.app.Activity;
-import android.app.Application;
-import android.app.Dialog;
-import android.content.Context;
 import android.content.res.Resources;
-import android.net.Uri;
 import android.util.DisplayMetrics;
-import android.view.View;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import me.jessyan.autosize.external.ExternalAdaptInfo;
 import me.jessyan.autosize.external.ExternalAdaptManager;
-import me.jessyan.autosize.internal.CancelAdapt;
 import me.jessyan.autosize.internal.CustomAdapt;
-import me.jessyan.autosize.utils.LogUtils;
 import me.jessyan.autosize.utils.Preconditions;
 
 /**
  * ================================================
- * AndroidAutoSize 用于屏幕适配的核心方法都在这里, 核心原理来自于 <a href="https://mp.weixin.qq.com/s/d9QCoBP6kV9VSWvVldVVwA">今日头条官方适配方案</a>
- * 此方案只要应用到 {@link Activity} 上, 这个 {@link Activity} 下的所有 {@link android.support.v4.app.Fragment}、{@link Dialog}、
- * 自定义 {@link View} 都会达到适配的效果, 如果某个页面不想使用适配请让该 {@link Activity} 实现 {@link CancelAdapt}
- * <p>
- * 任何方案都不可能完美, 在成本和收益中做出取舍, 选择出最适合自己的方案即可, 在没有更好的方案出来之前, 只有继续忍耐它的不完美, 或者自己作出改变
- * 既然选择, 就不要抱怨, 感谢 今日头条技术团队 和 张鸿洋 等人对 Android 屏幕适配领域的的贡献
+ * 当遇到本来适配正常的布局突然出现适配失效，适配异常等问题, 重写当前 {@link Activity} 的 {@link Activity#getResources()} 并调用
+ * {@link AutoSizeCompat} 的对应方法即可解决问题
  * <p>
  * Created by JessYan on 2018/8/8 19:20
  * <a href="mailto:jess.yan.effort@gmail.com">Contact me</a>
  * <a href="https://github.com/JessYanCoding">Follow me</a>
  * ================================================
  */
-public final class AutoSize {
+public final class AutoSizeCompat {
     private static Map<String, DisplayMetricsInfo> mCache = new ConcurrentHashMap<>();
 
-    private AutoSize() {
+    private AutoSizeCompat() {
         throw new IllegalStateException("you can't instantiate me!");
     }
 
     /**
      * 使用 AndroidAutoSize 初始化时设置的默认适配参数进行适配 (AndroidManifest 的 Meta 属性)
      *
-     * @param activity {@link Activity}
+     * @param resources {@link Resources}
      */
-    public static void autoConvertDensityOfGlobal(Activity activity) {
+    public static void autoConvertDensityOfGlobal(Resources resources) {
         if (AutoSizeConfig.getInstance().isBaseOnWidth()) {
-            autoConvertDensityBaseOnWidth(activity, AutoSizeConfig.getInstance().getDesignWidthInDp());
+            autoConvertDensityBaseOnWidth(resources, AutoSizeConfig.getInstance().getDesignWidthInDp());
         } else {
-            autoConvertDensityBaseOnHeight(activity, AutoSizeConfig.getInstance().getDesignHeightInDp());
+            autoConvertDensityBaseOnHeight(resources, AutoSizeConfig.getInstance().getDesignHeightInDp());
         }
     }
 
     /**
      * 使用 {@link Activity} 或 {@link android.support.v4.app.Fragment} 的自定义参数进行适配
      *
-     * @param activity    {@link Activity}
+     * @param resources   {@link Resources}
      * @param customAdapt {@link Activity} 或 {@link android.support.v4.app.Fragment} 需实现 {@link CustomAdapt}
      */
-    public static void autoConvertDensityOfCustomAdapt(Activity activity, CustomAdapt customAdapt) {
+    public static void autoConvertDensityOfCustomAdapt(Resources resources, CustomAdapt customAdapt) {
         Preconditions.checkNotNull(customAdapt, "customAdapt == null");
         float sizeInDp = customAdapt.getSizeInDp();
 
@@ -87,16 +75,16 @@ public final class AutoSize {
                 sizeInDp = AutoSizeConfig.getInstance().getDesignHeightInDp();
             }
         }
-        autoConvertDensity(activity, sizeInDp, customAdapt.isBaseOnWidth());
+        autoConvertDensity(resources, sizeInDp, customAdapt.isBaseOnWidth());
     }
 
     /**
      * 使用外部三方库的 {@link Activity} 或 {@link android.support.v4.app.Fragment} 的自定义适配参数进行适配
      *
-     * @param activity          {@link Activity}
+     * @param resources         {@link Resources}
      * @param externalAdaptInfo 三方库的 {@link Activity} 或 {@link android.support.v4.app.Fragment} 提供的适配参数, 需要配合 {@link ExternalAdaptManager#addExternalAdaptInfoOfActivity(Class, ExternalAdaptInfo)}
      */
-    public static void autoConvertDensityOfExternalAdaptInfo(Activity activity, ExternalAdaptInfo externalAdaptInfo) {
+    public static void autoConvertDensityOfExternalAdaptInfo(Resources resources, ExternalAdaptInfo externalAdaptInfo) {
         Preconditions.checkNotNull(externalAdaptInfo, "externalAdaptInfo == null");
         float sizeInDp = externalAdaptInfo.getSizeInDp();
 
@@ -108,27 +96,27 @@ public final class AutoSize {
                 sizeInDp = AutoSizeConfig.getInstance().getDesignHeightInDp();
             }
         }
-        autoConvertDensity(activity, sizeInDp, externalAdaptInfo.isBaseOnWidth());
+        autoConvertDensity(resources, sizeInDp, externalAdaptInfo.isBaseOnWidth());
     }
 
     /**
      * 以宽度为基准进行适配
      *
-     * @param activity        {@link Activity}
+     * @param resources       {@link Resources}
      * @param designWidthInDp 设计图的总宽度
      */
-    public static void autoConvertDensityBaseOnWidth(Activity activity, float designWidthInDp) {
-        autoConvertDensity(activity, designWidthInDp, true);
+    public static void autoConvertDensityBaseOnWidth(Resources resources, float designWidthInDp) {
+        autoConvertDensity(resources, designWidthInDp, true);
     }
 
     /**
      * 以高度为基准进行适配
      *
-     * @param activity         {@link Activity}
+     * @param resources        {@link Resources}
      * @param designHeightInDp 设计图的总高度
      */
-    public static void autoConvertDensityBaseOnHeight(Activity activity, float designHeightInDp) {
-        autoConvertDensity(activity, designHeightInDp, false);
+    public static void autoConvertDensityBaseOnHeight(Resources resources, float designHeightInDp) {
+        autoConvertDensity(resources, designHeightInDp, false);
     }
 
     /**
@@ -136,15 +124,15 @@ public final class AutoSize {
      * {@link DisplayMetrics#scaledDensity}、{@link DisplayMetrics#densityDpi} 这三个值, 额外增加 {@link DisplayMetrics#xdpi}
      * 以支持单位 {@code pt}、{@code in}、{@code mm}
      *
-     * @param activity      {@link Activity}
+     * @param resources     {@link Resources}
      * @param sizeInDp      设计图上的设计尺寸, 单位 dp, 如果 {@param isBaseOnWidth} 设置为 {@code true},
      *                      {@param sizeInDp} 则应该填写设计图的总宽度, 如果 {@param isBaseOnWidth} 设置为 {@code false},
      *                      {@param sizeInDp} 则应该填写设计图的总高度
      * @param isBaseOnWidth 是否按照宽度进行等比例适配, {@code true} 为以宽度进行等比例适配, {@code false} 为以高度进行等比例适配
      * @see <a href="https://mp.weixin.qq.com/s/d9QCoBP6kV9VSWvVldVVwA">今日头条官方适配方案</a>
      */
-    public static void autoConvertDensity(Activity activity, float sizeInDp, boolean isBaseOnWidth) {
-        Preconditions.checkNotNull(activity, "activity == null");
+    public static void autoConvertDensity(Resources resources, float sizeInDp, boolean isBaseOnWidth) {
+        Preconditions.checkNotNull(resources, "resources == null");
 
         float subunitsDesignSize = isBaseOnWidth ? AutoSizeConfig.getInstance().getUnitsManager().getDesignWidth()
                 : AutoSizeConfig.getInstance().getUnitsManager().getDesignHeight();
@@ -189,20 +177,15 @@ public final class AutoSize {
             targetXdpi = displayMetricsInfo.getXdpi();
         }
 
-        setDensity(activity, targetDensity, targetDensityDpi, targetScaledDensity, targetXdpi);
-
-        LogUtils.d(String.format(Locale.ENGLISH, "The %s has been adapted! \n%s Info: isBaseOnWidth = %s, %s = %f, %s = %f, targetDensity = %f, targetScaledDensity = %f, targetDensityDpi = %d, targetXdpi = %f"
-                , activity.getClass().getName(), activity.getClass().getSimpleName(), isBaseOnWidth, isBaseOnWidth ? "designWidthInDp"
-                        : "designHeightInDp", sizeInDp, isBaseOnWidth ? "designWidthInSubunits" : "designHeightInSubunits", subunitsDesignSize
-                , targetDensity, targetScaledDensity, targetDensityDpi, targetXdpi));
+        setDensity(resources, targetDensity, targetDensityDpi, targetScaledDensity, targetXdpi);
     }
 
     /**
      * 取消适配
      *
-     * @param activity {@link Activity}
+     * @param resources {@link Resources}
      */
-    public static void cancelAdapt(Activity activity) {
+    public static void cancelAdapt(Resources resources) {
         float initXdpi = AutoSizeConfig.getInstance().getInitXdpi();
         switch (AutoSizeConfig.getInstance().getUnitsManager().getSupportSubunits()) {
             case PT:
@@ -213,40 +196,30 @@ public final class AutoSize {
                 break;
             default:
         }
-        setDensity(activity, AutoSizeConfig.getInstance().getInitDensity()
+        setDensity(resources, AutoSizeConfig.getInstance().getInitDensity()
                 , AutoSizeConfig.getInstance().getInitDensityDpi()
                 , AutoSizeConfig.getInstance().getInitScaledDensity()
                 , initXdpi);
     }
 
     /**
-     * 当 App 中出现多进程，并且您需要适配所有的进程，就需要在 App 初始化时调用 {@link #initCompatMultiProcess}
-     * 建议实现自定义 {@link Application} 并在 {@link Application#onCreate()} 中调用 {@link #initCompatMultiProcess}
-     *
-     * @param context {@link Context}
-     */
-    public static void initCompatMultiProcess(Context context) {
-        context.getContentResolver().query(Uri.parse("content://" + context.getPackageName() + ".autosize-init-provider"), null, null, null, null);
-    }
-
-    /**
      * 给几大 {@link DisplayMetrics} 赋值
      *
-     * @param activity      {@link Activity}
+     * @param resources     {@link Resources}
      * @param density       {@link DisplayMetrics#density}
      * @param densityDpi    {@link DisplayMetrics#densityDpi}
      * @param scaledDensity {@link DisplayMetrics#scaledDensity}
      * @param xdpi          {@link DisplayMetrics#xdpi}
      */
-    private static void setDensity(Activity activity, float density, int densityDpi, float scaledDensity, float xdpi) {
+    private static void setDensity(Resources resources, float density, int densityDpi, float scaledDensity, float xdpi) {
         //兼容 MIUI
-        DisplayMetrics activityDisplayMetricsOnMIUI = getMetricsOnMiui(activity.getResources());
+        DisplayMetrics activityDisplayMetricsOnMIUI = getMetricsOnMiui(resources);
         DisplayMetrics appDisplayMetricsOnMIUI = getMetricsOnMiui(AutoSizeConfig.getInstance().getApplication().getResources());
 
         if (activityDisplayMetricsOnMIUI != null) {
             setDensity(activityDisplayMetricsOnMIUI, density, densityDpi, scaledDensity, xdpi);
         } else {
-            DisplayMetrics activityDisplayMetrics = activity.getResources().getDisplayMetrics();
+            DisplayMetrics activityDisplayMetrics = resources.getDisplayMetrics();
             setDensity(activityDisplayMetrics, density, densityDpi, scaledDensity, xdpi);
         }
 

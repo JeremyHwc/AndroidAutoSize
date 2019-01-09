@@ -2,7 +2,7 @@
 
 <p align="center">
    <a href="https://bintray.com/jessyancoding/maven/autosize/_latestVersion">
-    <img src="https://img.shields.io/badge/Jcenter-v0.9.5-brightgreen.svg?style=flat-square" alt="Latest Stable Version" />
+    <img src="https://img.shields.io/badge/Jcenter-v1.1.2-brightgreen.svg?style=flat-square" alt="Latest Stable Version" />
   </a>
   <a href="https://travis-ci.org/JessYanCoding/AndroidAutoSize">
     <img src="https://travis-ci.org/JessYanCoding/AndroidAutoSize.svg?branch=master" alt="Build Status" />
@@ -16,8 +16,8 @@
   <a href="https://www.jianshu.com/u/1d0c0bc634db">
     <img src="https://img.shields.io/badge/Author-JessYan-orange.svg?style=flat-square" alt="Author" />
   </a>
-  <a href="https://shang.qq.com/wpa/qunwpa?idkey=1a5dc5e9b2e40a780522f46877ba243eeb64405d42398643d544d3eec6624917">
-    <img src="https://img.shields.io/badge/QQ群-301733278-orange.svg?style=flat-square" alt="QQ Group" />
+  <a href="https://shang.qq.com/wpa/qunwpa?idkey=7e59e59145e6c7c68932ace10f52790636451f01d1ecadb6a652b1df234df753">
+    <img src="https://img.shields.io/badge/QQ%E7%BE%A4-455850365%20%7C%20301733278-orange.svg?style=flat-square" alt="QQ Group" />
   </a>
 </p>
 
@@ -68,13 +68,19 @@
 ## Notice
 * [Devices Info](https://material.io/tools/devices/)
 
-* [Analysis](https://juejin.im/post/5b7a29736fb9a019d53e7ee2)
+* [Introduction Of Function](https://juejin.im/post/5bce688e6fb9a05cf715d1c2)
 
-* [Android advanced framework](https://github.com/JessYanCoding/MVPArms)
+* [Framework Analysis](https://juejin.im/post/5b7a29736fb9a019d53e7ee2)
+
+* [Common Issues](https://github.com/JessYanCoding/AndroidAutoSize/issues/13)
+
+* [AndroidAutoLayout Migration Guide](https://github.com/JessYanCoding/AndroidAutoSize/issues/90)
+
+* [Android Advanced Framework](https://github.com/JessYanCoding/MVPArms)
 
 ## Download
 ``` gradle
- implementation 'me.jessyan:autosize:0.9.5'
+ implementation 'me.jessyan:autosize:1.1.2'
 ```
 
 ## Usage
@@ -185,15 +191,11 @@ AutoSizeConfig.getInstance().getUnitsManager()
         .setSupportSubunits(Subunits.MM);
 ```
 
-
-## Donate
-![alipay](https://raw.githubusercontent.com/JessYanCoding/MVPArms/master/image/pay_alipay.jpg) ![](https://raw.githubusercontent.com/JessYanCoding/MVPArms/master/image/pay_wxpay.jpg)
-
 ## About Me
 * **Email**: <jess.yan.effort@gmail.com>
 * **Home**: <http://jessyan.me>
-* **掘金**: <https://gold.xitu.io/user/57a9dbd9165abd0061714613>
-* **简书**: <http://www.jianshu.com/u/1d0c0bc634db>
+* **掘金**: <https://juejin.im/user/57a9dbd9165abd0061714613>
+* **简书**: <https://www.jianshu.com/u/1d0c0bc634db>
 
 ## License
 ```
